@@ -1,0 +1,121 @@
+#+TITLE: module system
+#+AUTHOR: cyy
+
+* nodejs philosophy
+    - small core
+    - small module
+    - small surface area
+
+* module system
+** commonjs module system
+    /file1/
+
+    #+BEGIN_SRC javascript
+    const fs = require('fs');
+
+    function loadModule(filename, module, require) {
+        const wrappedSrc = 
+            `(function(module, exports, require) {
+                ${fs.readFileSync(filename, 'utf8')}
+            })(module, module.exports, require)`
+        eval(wrappedSrc);
+    }
+
+    function require(moduleName) {
+        console.log(`Require invoked for module: ${moduleName}`);
+        const id = require.resolve(moduleName);
+        if (require.cache[id]) {
+            return require.cache[id].exports;
+        }
+
+        const module = {
+            exports: {},
+            id
+        };
+
+        require.cache[id] = module;
+
+        loadModule(id, module, require);
+
+        return module.exports;
+    }
+
+    require.cache = {};
+    require.resolve = (moduleName) => {
+    }
+    #+END_SRC
+
+    /file2/
+    #+BEGIN_SRC javascript
+    a = 2;
+    exports = a;
+    a = 3;
+    module.exports = {
+        a
+    }
+    #+END_SRC
+
+
+** dependency hell
+   - file modules
+   - core modules
+   - package moduels
+     -- current node_modules directory
+     -- node_modules directory up current directory
+     -- ... until root file system
+*** incomplete require
+** esm module system
+   1. parsing
+   2. instantiation
+   3. evaluation
+
+*** parsing
+    starting from the entry point. find all the necessary modules and to load the the source code from the modules files.
+    The dependency graph is explored in a *depth-first* fashion, and every module is visited
+    *only once*.
+
+    /example:/
+
+    /main.js/
+    #+BEGIN_SRC javascript
+
+    import * as a from "./a.js";
+    import * as b from "./b.js";
+
+    console.log("a ->", a);
+    console.log("b ->", b);
+
+    #+END_SRC
+
+    /a.js/
+    #+BEGIN_SRC javascript
+
+    import * as bModule from "./b.js";
+    export let loaded = false;
+    export const b = bModule;
+    loaded = true;
+
+    #+END_SRC
+
+    /b.js/
+    #+BEGIN_SRC javascript
+
+    import * as aModule from "./a.js";
+    export let loaded = false;
+    export const a = aModule;
+    loaded = true;
+
+    #+END_SRC
+
+    *process*
+    1. main.js -> a.js -> b.js
+
+
+*** instantiation
+    the interpreter walks the tree view obtained from the previous phase from the bottom to the top.
+    For every module, the interpreter will look for all the exported properties first and build out
+    a map of the exported names in memory
+    the interperter will link the exported names to the modules importing them
+
+*** evaluation
+    all the code in every file is finally *executed*. The execution order is again bottom-top respecting the post-order depth-first visit of our original dependency graph. With this approach, main.js is the last file to executed. This way, we can be sure that all the exported values have been initialized before we start executing our main business logic.

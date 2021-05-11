@@ -1,40 +1,60 @@
-function spiderLinks(currentUrl, body, nesting, cb) {
-    if (nesting === 0) {
-        return process.nextTick(cb);
-    }
+import fs from 'fs';
 
-    const links = getPageLinks(currentUrl, body);
-    if (links.length === 0) {
-        return process.nextTick(cb);
-    }
-
-    let completed = 0;
-    let hasErrors = false;
-
-    function done(err) {
+function recursiveFind(path, keyword, cb) {
+    fs.stat(path, (err, stats) => {
         if (err) {
-            hasErrors = true;
             return cb(err);
         }
-        if (++completed === links.length && !hasErrors) {
-            return cb();
-        }
-    }
-
-    links.forEach(link => spider(link, nesting - 1, done));
-}
-
-// the pattern
-const tasks = [];
-
-let completed = 0;
-tasks.forEach(task => {
-    task(() => {
-        if (++completed === tasks.length) {
-            finish();
+        if (!stats.isDirectory()) {
+            fs.readFile(path, 'utf8', (err, data) => {
+                if (err) {
+                    return cb(err);
+                }
+                if (data.indexOf(keyword) >= 0) {
+                    result.push(path);
+                }
+                return cb();
+            })
+        } else {
+            ls(path, keyword, cb);
         }
     })
-})
-
-function finish() {
 }
+
+function ls(path, keyword, cb) {
+    fs.readdir(path, (err, files) => {
+        if (err) {
+            return cb(err);
+        }
+
+        files = files.map(file => {
+            return path + '/' + file;
+        })
+        if (files.length === 0) {
+            return process.nextTick(cb);
+        }
+
+        let completed = 0;
+        let hasErrors = false;
+
+        function done(err) {
+            if (err) {
+                hasErrors = true;
+                return cb(err);
+            }
+            if (++completed === files.length && !hasErrors) {
+                return cb();
+            }
+        }
+        
+        files.forEach(file => recursiveFind(file, keyword, done));
+    })
+}
+    
+const result = [];
+recursiveFind('.', 'cb', err => {
+    if (err) {
+        console.error(err);
+    }
+    console.log(result);
+});

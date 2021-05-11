@@ -27,6 +27,9 @@ function ls(path, keyword, cb) {
             return cb(err);
         }
 
+        files = files.map(file => {
+            return path + '/' + file;
+        })
         if (files.length === 0) {
             return process.nextTick(cb);
         }
@@ -50,7 +53,7 @@ function ls(path, keyword, cb) {
     
 const result = [];
 
-recursiveFind('./', 'cb', (err) => {
+recursiveFind('.', 'cb', (err) => {
     if (err) {
         console.error(err);
         process.exit(1);
